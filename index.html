@@ -469,7 +469,7 @@
   /** Load the external JSON context file. */
   async function loadContextData() {
     try {
-      const response = await fetch('oscars_context.json');
+      const response = await fetch('info.json');
       if (response.ok) {
         contextData = await response.json();
         console.log('Context data loaded successfully.');
