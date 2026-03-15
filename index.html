@@ -265,7 +265,7 @@
     { "name": "Directing", "nominees":["Chloé Zhao—Hamnet", "Josh Safdie—Marty Supreme", "Paul Thomas Anderson—One Battle After Another", "Joachim Trier—Sentimental Value", "Ryan Coogler—Sinners"], "coords": [[308.78, 521.15],[309.13, 509.32],[308.78, 497.13],[309.13, 485.3],[308.78, 473.11]] },
     { "name": "Documentary Feature Film", "nominees":["The Alabama Solution", "Come See Me in the Good Light", "Cutting Through Rocks", "Mr. Nobody Against Putin", "The Perfect Neighbor"], "coords": [[308.78, 441.08],[309.13, 429.25],[308.78, 417.06], [309.13, 405.23],[309.13, 393.39]] },
     { "name": "Documentary Short Film", "nominees":["All the Empty Rooms", "Armed Only with a Camera: The Life and…", "Children No More: “Were and Are Gone”", "The Devil Is Busy", "Perfectly a Strangeness"], "coords": [[309.13, 361.01],[308.78, 348.83],[309.13, 336.99],[308.78, 324.81],[309.13, 312.97]] },
-    { "name": "Film Editing", "nominees":["F1", "Marty Supreme", "One Battle After Another", "Sentimental Value", "Sinners"], "coords": [[309.13, 281.29],[309.13, 269.11], [309.13, 257.27],[308.78, 245.08],[309.13, 233.25]] },
+    { "name": "Film Editing", "nominees":["F1", "Marty Supreme", "One Battle After Another", "Sentimental Value", "Sinners"], "coords": [[309.13, 281.29],[309.13, 269.11],[309.13, 257.27],[308.78, 245.08],[309.13, 233.25]] },
     { "name": "International Feature Film", "nominees":["The Secret Agent", "It Was Just an Accident", "Sentimental Value", "Sirāt", "The Voice of Hind Rajab"], "coords": [[309.13, 200.87],[309.13, 189.04],[309.13, 176.85],[309.13, 165.01],[309.13, 152.83]] },
     { "name": "Live Action Short Film", "nominees":["Butcher’s Stain", "A Friend of Dorothy", "Jane Austen’s Period Drama", "The Singers", "Two People Exchanging Saliva"], "coords": [[449.08, 681.29], [449.08, 670.5],[449.08, 659.71],[448.73, 648.92],[449.08, 638.47]] },
     { "name": "Makeup and Hairstyling", "nominees":["Frankenstein", "Kokuho", "Sinners", "The Smashing Machine", "The Ugly Stepsister"], "coords": [[449.08, 607.84],[449.08, 597.05],[449.08, 586.25],[449.08, 575.46],[449.08, 564.67]] },
@@ -283,7 +283,7 @@
 
   const formGrid = document.getElementById('form-grid');
   
-  // 1. Build DOM
+  // Build DOM
   categories.forEach((cat, catIndex) => {
     const fieldset = document.createElement('fieldset');
     const legend = document.createElement('legend');
@@ -300,7 +300,6 @@
       radio.value = nomIndex;
       radio.dataset.wasChecked = "false";
       
-      // Deselect functionality
       radio.addEventListener('click', function(e) {
         if (this.dataset.wasChecked === "true") {
           this.checked = false;
@@ -333,7 +332,6 @@
     formGrid.appendChild(fieldset);
   });
 
-  // 2. Track Progress
   function updateProgress() {
     const total = categories.length;
     const filled = new Set();
@@ -350,7 +348,7 @@
     updateProgress();
   }
 
-  // 3. Dynamic Image Tooltips
+  // Wikipedia Image Tooltips
   const tooltipCache = {};
   let hoverTimeout;
   let mouseX = 0; let mouseY = 0;
@@ -369,15 +367,10 @@
   function initTooltips() {
     const tooltip = document.createElement('div');
     tooltip.id = 'wiki-tooltip'; tooltip.className = 'wiki-tooltip';
-    tooltip.innerHTML = `
-      <img src="" alt="" id="tt-img" class="tooltip-img">
-      <div class="tooltip-title" id="tt-title"></div>
-    `;
+    tooltip.innerHTML = `<img src="" alt="" id="tt-img" class="tooltip-img"><div class="tooltip-title" id="tt-title"></div>`;
     document.body.appendChild(tooltip);
 
-    const labels = document.querySelectorAll('.nominee-label');
-    
-    labels.forEach(label => {
+    document.querySelectorAll('.nominee-label').forEach(label => {
       label.addEventListener('mouseenter', () => {
         clearTimeout(hoverTimeout);
         hoverTimeout = setTimeout(async () => {
@@ -395,22 +388,18 @@
           document.getElementById('tt-title').textContent = "Loading image...";
           document.getElementById('tt-img').style.display = 'none';
           
-          // Smart Query parser
           let query = fullText;
           let displayName = fullText;
 
           if (fullText.includes('—')) {
             const parts = fullText.split('—');
             if (['Actor', 'Actress', 'Directing', 'Music', 'Costume', 'Makeup', 'Casting'].some(c => category.includes(c))) {
-              query = parts[0].trim();
-              displayName = parts[0].trim();
+              query = parts[0].trim(); displayName = parts[0].trim();
             } else {
-              query = parts[1].trim() + " film";
-              displayName = parts[1].trim();
+              query = parts[1].trim() + " film"; displayName = parts[1].trim();
             }
           } else {
-            query = fullText + " film";
-            displayName = fullText;
+            query = fullText + " film"; displayName = fullText;
           }
 
           if (!tooltipCache[query]) {
@@ -426,61 +415,82 @@
                } else {
                  tooltipCache[query] = { title: displayName, image: null };
                }
-             } catch(err) {
-               tooltipCache[query] = { title: displayName, image: null };
-             }
+             } catch(err) { tooltipCache[query] = { title: displayName, image: null }; }
           }
           
           if (!tooltip.classList.contains('visible')) return;
-          
           const result = tooltipCache[query];
           const imgEl = document.getElementById('tt-img');
           
           if (result.image) {
-            imgEl.src = result.image;
-            imgEl.style.display = 'block';
+            imgEl.src = result.image; imgEl.style.display = 'block';
             document.getElementById('tt-title').textContent = result.title;
           } else {
             imgEl.style.display = 'none';
-            document.getElementById('tt-title').textContent = result.title + " (No image found)";
+            document.getElementById('tt-title').textContent = result.title + " (No image)";
           }
-          
         }, 350); 
       });
-
       label.addEventListener('mouseleave', () => {
-        clearTimeout(hoverTimeout);
-        document.getElementById('wiki-tooltip').classList.remove('visible');
+        clearTimeout(hoverTimeout); document.getElementById('wiki-tooltip').classList.remove('visible');
       });
     });
   }
 
-  // 4. Generate Final Document (PDF or PNG)
+  // Highly Resilient PDF Fetcher
+  async function fetchBallotTemplate(btnText) {
+    const originalUrl = 'https://a2.ltrbxd.com/oscars/2026/letterboxd-2026-oscars-ballot.pdf';
+    const encodedUrl = encodeURIComponent(originalUrl);
+    
+    // Failover array to instantly route around dead proxies
+    const endpoints =[
+      originalUrl, 
+      `https://corsproxy.io/?${encodedUrl}`, 
+      `https://api.allorigins.win/raw?url=${encodedUrl}`,
+      `https://api.codetabs.com/v1/proxy?quest=${encodedUrl}`
+    ];
+
+    for (let i = 0; i < endpoints.length; i++) {
+      try {
+        btnText.innerText = `Fetching template (Proxy ${i+1}/${endpoints.length})...`;
+        
+        // Impose a strict 10 second timeout so broken proxies don't hang the script
+        const controller = new AbortController();
+        const timeoutId = setTimeout(() => controller.abort(), 10000); 
+
+        const response = await fetch(endpoints[i], { signal: controller.signal });
+        clearTimeout(timeoutId);
+        
+        if (!response.ok) continue; 
+        
+        const arrayBuffer = await response.arrayBuffer();
+        
+        // Ensure the downloaded data is actually a PDF and not a proxy's HTML error page
+        const view = new Uint8Array(arrayBuffer);
+        if (view[0] === 0x25 && view[1] === 0x50 && view[2] === 0x44 && view[3] === 0x46) {
+          return arrayBuffer;
+        }
+      } catch (e) {
+        console.warn(`Attempt ${i+1} failed:`, e);
+      }
+    }
+    throw new Error("All template download attempts failed. A firewall or adblocker may be interfering.");
+  }
+
+  // Document Generator
   async function generateFile(format) {
     const btns = document.querySelectorAll('button');
     const loader = document.getElementById(`loader-${format}`);
     const btnText = document.getElementById(`text-${format}`);
-    const originalText = btnText.innerText;
+    const originalText = format === 'pdf' ? 'Save PDF' : 'Save PNG';
     
     btns.forEach(b => b.disabled = true);
     loader.style.display = 'inline-block';
-    btnText.innerText = 'Processing...';
 
     try {
-      let existingPdfBytes;
-      const originalUrl = 'https://a2.ltrbxd.com/oscars/2026/letterboxd-2026-oscars-ballot.pdf';
-      
-      try {
-        const response = await fetch(originalUrl);
-        if (!response.ok) throw new Error();
-        existingPdfBytes = await response.arrayBuffer();
-      } catch (e) {
-        const proxyUrl = 'https://api.allorigins.win/raw?url=' + encodeURIComponent(originalUrl);
-        const proxyResponse = await fetch(proxyUrl);
-        existingPdfBytes = await proxyResponse.arrayBuffer();
-      }
+      const existingPdfBytes = await fetchBallotTemplate(btnText);
 
-      // Draw standard PDF
+      btnText.innerText = 'Applying selections...';
       const { PDFDocument, rgb } = window.PDFLib;
       const pdfDoc = await PDFDocument.load(existingPdfBytes);
       const firstPage = pdfDoc.getPages()[0];
@@ -496,8 +506,8 @@
 
       const pdfBytes = await pdfDoc.save();
 
-      // Trigger respective download
       if (format === 'pdf') {
+        btnText.innerText = 'Saving PDF...';
         const blob = new Blob([pdfBytes], { type: 'application/pdf' });
         const link = document.createElement('a');
         link.href = URL.createObjectURL(blob);
@@ -507,23 +517,22 @@
         document.body.removeChild(link);
         
       } else if (format === 'png') {
-        // Load into PDF.js Canvas renderer
+        btnText.innerText = 'Rendering PNG...';
         const loadingTask = pdfjsLib.getDocument({ data: pdfBytes });
         const pdf = await loadingTask.promise;
         const page = await pdf.getPage(1);
         
-        // 3x scale guarantees crisp, high-quality HD PNG output
         const scale = 3;
         const viewport = page.getViewport({ scale: scale });
         
         const canvas = document.createElement('canvas');
         const context = canvas.getContext('2d');
-        canvas.height = viewport.height;
-        canvas.width = viewport.width;
+        canvas.height = viewport.height; canvas.width = viewport.width;
         
         const renderContext = { canvasContext: context, viewport: viewport };
         await page.render(renderContext).promise;
         
+        btnText.innerText = 'Saving PNG...';
         const pngUrl = canvas.toDataURL('image/png');
         const link = document.createElement('a');
         link.href = pngUrl;
@@ -535,7 +544,7 @@
       
     } catch (error) {
       console.error(error);
-      alert('An error occurred. Please check your internet connection and try again.');
+      alert('An error occurred. ' + error.message);
     } finally {
       btns.forEach(b => b.disabled = false);
       loader.style.display = 'none';
