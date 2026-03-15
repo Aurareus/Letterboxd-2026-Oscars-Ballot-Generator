@@ -1,0 +1,551 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>2026 Oscars Ballot</title>
+  
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+  
+  <!-- PDF manipulation and rendering libraries -->
+  <script src="https://unpkg.com/pdf-lib@1.17.1/dist/pdf-lib.min.js"></script>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.min.js"></script>
+
+  <style>
+    :root {
+      --bg-color: #14181c;
+      --panel-bg: #1c2228;
+      --panel-border: #2c3440;
+      --text-main: #fff;
+      --text-muted: #8899aa;
+      --brand-green: #00e054;
+      --brand-green-hover: #00c04b;
+      --brand-blue: #40bcf4;
+      --brand-blue-hover: #2b9ed3;
+    }
+
+    body {
+      background-color: var(--bg-color);
+      color: var(--text-muted);
+      font-family: 'Inter', sans-serif;
+      margin: 0;
+      padding: 0 0 110px 0;
+      line-height: 1.5;
+      -webkit-font-smoothing: antialiased;
+    }
+
+    .header {
+      text-align: center;
+      padding: 40px 20px 30px;
+    }
+
+    h1 {
+      color: var(--text-main);
+      margin: 0 0 10px 0;
+      font-size: 2.2rem;
+      letter-spacing: -0.5px;
+    }
+
+    .subtitle {
+      margin: 0;
+      font-size: 1.1rem;
+    }
+
+    .container {
+      max-width: 1200px;
+      margin: 0 auto;
+      padding: 0 20px;
+    }
+
+    .grid-form {
+      display: grid;
+      grid-template-columns: repeat(auto-fill, minmax(320px, 1fr));
+      gap: 24px;
+    }
+
+    fieldset {
+      border: 1px solid var(--panel-border);
+      border-radius: 12px;
+      padding: 20px;
+      background-color: var(--panel-bg);
+      transition: border-color 0.2s;
+      box-shadow: 0 4px 15px rgba(0,0,0,0.1);
+    }
+
+    fieldset:hover { border-color: #3d4a5c; }
+
+    legend {
+      color: var(--text-main);
+      font-weight: 600;
+      font-size: 1.15rem;
+      padding: 0 10px;
+      margin-left: -10px;
+    }
+
+    .nominee-label {
+      display: flex;
+      align-items: flex-start;
+      margin-top: 14px;
+      cursor: pointer;
+      font-size: 0.95rem;
+      transition: color 0.2s;
+      position: relative;
+    }
+
+    .nominee-label:hover .nominee-text { color: var(--text-main); }
+
+    input[type="radio"] { position: absolute; opacity: 0; cursor: pointer; height: 0; width: 0; }
+
+    .custom-radio {
+      width: 18px; height: 18px;
+      border: 2px solid #556677; border-radius: 50%;
+      display: inline-block; position: relative;
+      margin-right: 14px; margin-top: 2px; flex-shrink: 0;
+      transition: all 0.2s ease-in-out;
+    }
+
+    input[type="radio"]:checked ~ .custom-radio { border-color: var(--brand-green); }
+
+    input[type="radio"]:checked ~ .custom-radio::after {
+      content: ''; position: absolute; top: 50%; left: 50%;
+      transform: translate(-50%, -50%) scale(1);
+      width: 10px; height: 10px;
+      background-color: var(--brand-green); border-radius: 50%;
+      animation: popIn 0.2s cubic-bezier(0.175, 0.885, 0.32, 1.275);
+    }
+
+    @keyframes popIn {
+      0% { transform: translate(-50%, -50%) scale(0); }
+      100% { transform: translate(-50%, -50%) scale(1); }
+    }
+
+    input[type="radio"]:checked ~ .nominee-text {
+      color: var(--text-main); font-weight: 500;
+    }
+
+    /* Image-Only Tooltip Styling */
+    .wiki-tooltip {
+      position: fixed; z-index: 9999;
+      width: 180px; 
+      background: rgba(20, 24, 28, 0.95);
+      backdrop-filter: blur(12px);
+      border: 1px solid var(--panel-border);
+      border-radius: 10px; padding: 12px;
+      box-shadow: 0 10px 40px rgba(0,0,0,0.6);
+      pointer-events: none; opacity: 0;
+      transform: translateY(10px);
+      transition: opacity 0.2s cubic-bezier(0.175, 0.885, 0.32, 1.2), transform 0.2s cubic-bezier(0.175, 0.885, 0.32, 1.2);
+      display: flex; flex-direction: column; align-items: center;
+    }
+
+    .wiki-tooltip.visible { opacity: 1; transform: translateY(0); }
+
+    .tooltip-img {
+      width: 100%; height: auto;
+      max-height: 240px;
+      object-fit: cover;
+      border-radius: 6px;
+      box-shadow: 0 4px 10px rgba(0,0,0,0.3);
+      display: none;
+    }
+
+    .tooltip-title {
+      font-weight: 600;
+      color: var(--text-main);
+      margin-top: 10px;
+      font-size: 0.9rem;
+      text-align: center;
+      line-height: 1.3;
+    }
+
+    /* Sticky Footer */
+    .sticky-footer {
+      position: fixed; bottom: 0; left: 0; width: 100%;
+      background: rgba(20, 24, 28, 0.95);
+      backdrop-filter: blur(8px);
+      border-top: 1px solid var(--panel-border);
+      padding: 15px 0; z-index: 1000;
+    }
+
+    .footer-content {
+      max-width: 1200px; margin: 0 auto; padding: 0 20px;
+      display: flex; justify-content: space-between; align-items: center;
+      flex-wrap: wrap; gap: 15px;
+    }
+
+    .progress-tracker { display: flex; align-items: center; gap: 15px; font-weight: 600; color: var(--text-main); }
+    .progress-bar-bg { width: 150px; height: 8px; background: var(--panel-border); border-radius: 4px; overflow: hidden; }
+    .progress-bar-fill { height: 100%; background: var(--brand-green); width: 0%; transition: width 0.3s ease; }
+
+    .button-group { display: flex; gap: 12px; flex-wrap: wrap; }
+
+    button {
+      padding: 12px 20px; font-size: 0.95rem; font-weight: 600;
+      border-radius: 6px; border: none; cursor: pointer;
+      font-family: 'Inter', sans-serif; transition: all 0.2s;
+      display: flex; align-items: center; gap: 8px;
+    }
+
+    .btn-pdf { background-color: var(--brand-green); color: #fff; }
+    .btn-pdf:hover:not(:disabled) { background-color: var(--brand-green-hover); transform: translateY(-1px); }
+    
+    .btn-png { background-color: var(--brand-blue); color: #fff; }
+    .btn-png:hover:not(:disabled) { background-color: var(--brand-blue-hover); transform: translateY(-1px); }
+    
+    .btn-secondary { background-color: #445566; color: #fff; }
+    .btn-secondary:hover:not(:disabled) { background-color: #556677; }
+    
+    button:disabled { opacity: 0.5; cursor: not-allowed; transform: none !important; }
+
+    .loader {
+      display: none; width: 16px; height: 16px;
+      border: 3px solid rgba(255,255,255,0.3);
+      border-radius: 50%; border-top-color: #fff;
+      animation: spin 1s ease-in-out infinite;
+    }
+    @keyframes spin { to { transform: rotate(360deg); } }
+
+    @media (max-width: 768px) {
+      .footer-content { flex-direction: column; text-align: center; }
+      .progress-tracker, .button-group { width: 100%; justify-content: center; }
+    }
+  </style>
+
+  <script>
+    // Bypass strict cross-origin checks for local execution of PDF.js workers
+    const workerBlob = new Blob([`importScripts('https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.worker.min.js');`], { type: 'application/javascript' });
+    pdfjsLib.GlobalWorkerOptions.workerPort = new Worker(URL.createObjectURL(workerBlob));
+  </script>
+</head>
+<body>
+
+<div class="header">
+  <h1>2026 Oscars Ballot</h1>
+  <p class="subtitle">Select your winners. Leave a category blank if undecided. Hover over options to view images.</p>
+</div>
+
+<div class="container">
+  <form id="ballot-form">
+    <div id="form-grid" class="grid-form"></div>
+  </form>
+</div>
+
+<div class="sticky-footer">
+  <div class="footer-content">
+    <div class="progress-tracker">
+      <div class="progress-text" id="progress-text">0 / 24 Selected</div>
+      <div class="progress-bar-bg"><div class="progress-bar-fill" id="progress-bar"></div></div>
+    </div>
+    <div class="button-group">
+      <button type="button" class="btn-secondary" onclick="clearForm()">Clear All</button>
+      <button type="button" class="btn-pdf" id="btn-pdf" onclick="generateFile('pdf')">
+        <span class="loader" id="loader-pdf"></span>
+        <span id="text-pdf">Save PDF</span>
+      </button>
+      <button type="button" class="btn-png" id="btn-png" onclick="generateFile('png')">
+        <span class="loader" id="loader-png"></span>
+        <span id="text-png">Save PNG</span>
+      </button>
+    </div>
+  </div>
+</div>
+
+<script>
+  // Exact coordinate map
+  const categories =[
+    { "name": "Actor in a Leading Role", "nominees":["Timothée Chalamet—Marty Supreme", "Leonardo DiCaprio—One Battle After Another", "Ethan Hawke—Blue Moon", "Michael B. Jordan—Sinners", "Wagner Moura—The Secret Agent"], "coords": [[169.19, 681.29],[168.84, 669.11],[169.19, 657.27],[168.84, 645.09],[169.19, 633.25]] },
+    { "name": "Actor in a Supporting Role", "nominees":["Benicio Del Toro—One Battle After Another", "Jacob Elordi—Frankenstein", "Delroy Lindo—Sinners", "Sean Penn—One Battle After Another", "Stellan Skarsgård—Sentimental Value"], "coords": [[168.84, 601.22], [169.19, 589.39],[168.84, 577.2],[169.19, 565.37],[168.84, 553.18]] },
+    { "name": "Actress in a Leading Role", "nominees":["Jessie Buckley—Hamnet", "Rose Byrne—If I Had Legs I’d Kick You", "Kate Hudson—Song Sung Blue", "Renate Reinsve—Sentimental Value", "Emma Stone—Bugonia"], "coords": [[168.84, 521.15],[169.19, 509.32],[168.84, 497.13],[169.19, 485.3],[168.84, 473.11]] },
+    { "name": "Actress in a Supporting Role", "nominees":["Elle Fanning—Sentimental Value", "Inga Ibsdotter Lilleaas—Sentimental Value", "Amy Madigan—Weapons", "Wunmi Mosaku—Sinners", "Teyana Taylor—One Battle After Another"], "coords": [[168.84, 441.08],[169.19, 429.25],[168.84, 417.06],[168.84, 405.23],[169.19, 393.39]] },
+    { "name": "Animated Feature Film", "nominees":["Arco", "Elio", "KPop Demon Hunters", "Little Amélie or the Character of Rain", "Zootopia 2"], "coords": [[169.19, 361.36],[168.84, 349.18],[169.19, 337.34],[168.84, 325.16],[169.19, 313.32]] },
+    { "name": "Animated Short Film", "nominees":["Butterfly", "Forevergreen", "The Girl Who Cried Pearls", "Retirement Plan", "The Three Sisters"], "coords": [[169.19, 281.29],[168.84, 269.11],[169.19, 257.27],[168.84, 245.08],[169.19, 233.25]] },
+    { "name": "Casting", "nominees":["Hamnet", "Marty Supreme", "One Battle After Another", "The Secret Agent", "Sinners"], "coords": [[168.84, 201.22],[169.19, 189.38],[168.84, 177.2],[169.19, 165.36],[168.84, 153.18]] },
+    { "name": "Cinematography", "nominees":["Frankenstein", "Marty Supreme", "One Battle After Another", "Sinners", "Train Dreams"], "coords": [[309.13, 681.29],[308.78, 669.11],[309.13, 657.27],[308.78, 645.09],[309.13, 633.25]] },
+    { "name": "Costume Design", "nominees":["Avatar: Fire and Ash", "Frankenstein", "Hamnet", "Marty Supreme", "Sinners"], "coords": [[309.13, 601.22],[309.13, 589.39],[309.13, 577.2],[309.13, 565.37],[309.13, 553.18]] },
+    { "name": "Directing", "nominees":["Chloé Zhao—Hamnet", "Josh Safdie—Marty Supreme", "Paul Thomas Anderson—One Battle After Another", "Joachim Trier—Sentimental Value", "Ryan Coogler—Sinners"], "coords": [[308.78, 521.15],[309.13, 509.32],[308.78, 497.13],[309.13, 485.3],[308.78, 473.11]] },
+    { "name": "Documentary Feature Film", "nominees":["The Alabama Solution", "Come See Me in the Good Light", "Cutting Through Rocks", "Mr. Nobody Against Putin", "The Perfect Neighbor"], "coords": [[308.78, 441.08],[309.13, 429.25],[308.78, 417.06], [309.13, 405.23],[309.13, 393.39]] },
+    { "name": "Documentary Short Film", "nominees":["All the Empty Rooms", "Armed Only with a Camera: The Life and…", "Children No More: “Were and Are Gone”", "The Devil Is Busy", "Perfectly a Strangeness"], "coords": [[309.13, 361.01],[308.78, 348.83],[309.13, 336.99],[308.78, 324.81],[309.13, 312.97]] },
+    { "name": "Film Editing", "nominees":["F1", "Marty Supreme", "One Battle After Another", "Sentimental Value", "Sinners"], "coords": [[309.13, 281.29],[309.13, 269.11], [309.13, 257.27],[308.78, 245.08],[309.13, 233.25]] },
+    { "name": "International Feature Film", "nominees":["The Secret Agent", "It Was Just an Accident", "Sentimental Value", "Sirāt", "The Voice of Hind Rajab"], "coords": [[309.13, 200.87],[309.13, 189.04],[309.13, 176.85],[309.13, 165.01],[309.13, 152.83]] },
+    { "name": "Live Action Short Film", "nominees":["Butcher’s Stain", "A Friend of Dorothy", "Jane Austen’s Period Drama", "The Singers", "Two People Exchanging Saliva"], "coords": [[449.08, 681.29], [449.08, 670.5],[449.08, 659.71],[448.73, 648.92],[449.08, 638.47]] },
+    { "name": "Makeup and Hairstyling", "nominees":["Frankenstein", "Kokuho", "Sinners", "The Smashing Machine", "The Ugly Stepsister"], "coords": [[449.08, 607.84],[449.08, 597.05],[449.08, 586.25],[449.08, 575.46],[449.08, 564.67]] },
+    { "name": "Music (Original Score)", "nominees":["Jerskin Fendrix—Bugonia", "Alexandre Desplat—Frankenstein", "Max Richter—Hamnet", "Jonny Greenwood—One Battle After Another", "Ludwig Göransson—Sinners"], "coords": [[449.08, 533.34],[449.08, 522.55],[449.08, 511.75],[449.08, 500.96],[449.08, 490.17]] },
+    { "name": "Music (Original Song)", "nominees":["Dear Me—Diane Warren: Relentless", "Golden—KPop Demon Hunters", "I Lied To You—Sinners", "Sweet Dreams Of Joy—Viva Verdi!", "Train Dreams—Train Dreams"], "coords": [[449.08, 459.53],[449.08, 448.74],[449.08, 437.95],[449.08, 427.16],[448.73, 416.37]] },
+    { "name": "Production Design", "nominees":["Frankenstein", "Hamnet", "Marty Supreme", "One Battle After Another", "Sinners"], "coords": [[449.08, 385.38],[449.08, 374.59],[449.08, 363.8],[448.73, 353.01],[449.08, 342.56]] },
+    { "name": "Sound", "nominees":["F1", "Frankenstein", "One Battle After Another", "Sinners", "Sirāt"], "coords": [[449.08, 311.23],[449.08, 300.44],[448.73, 289.65],[449.08, 279.2],[449.08, 268.41]] },
+    { "name": "Visual Effects", "nominees":["Avatar: Fire and Ash", "F1", "Jurassic World Rebirth", "The Lost Bus", "Sinners"], "coords": [[449.08, 237.08],[449.08, 226.63],[449.08, 215.84],[449.08, 205.05],[449.08, 194.26]] },
+    { "name": "Writing (Adapted Screenplay)", "nominees":["Bugonia", "Frankenstein", "Hamnet", "One Battle After Another", "Train Dreams"], "coords": [[449.08, 163.27],[449.08, 152.48],[449.08, 141.69],[449.08, 130.9],[449.08, 120.11]] },
+    { "name": "Writing (Original Screenplay)", "nominees":["Blue Moon", "It Was Just an Accident", "Marty Supreme", "Sentimental Value", "Sinners"], "coords": [[449.08, 88.77],[449.08, 77.98],[449.08, 67.19],[449.08, 56.4],[448.73, 45.61]] },
+    { "name": "Best Picture", "nominees":[ "Bugonia", "F1", "Frankenstein", "Hamnet", "Marty Supreme", "One Battle After Another", "The Secret Agent", "Sentimental Value", "Sinners", "Train Dreams" ],
+      "coords": [[169.19, 109.31],[168.84, 96.08],[169.19, 82.86],[169.19, 69.28],[168.84, 55.7],[309.13, 109.31],[308.78, 96.08],[309.13, 82.86],[309.13, 69.28],[309.13, 55.7]]
+    }
+  ];
+
+  const formGrid = document.getElementById('form-grid');
+  
+  // 1. Build DOM
+  categories.forEach((cat, catIndex) => {
+    const fieldset = document.createElement('fieldset');
+    const legend = document.createElement('legend');
+    legend.textContent = cat.name;
+    fieldset.appendChild(legend);
+
+    cat.nominees.forEach((nominee, nomIndex) => {
+      const label = document.createElement('label');
+      label.className = 'nominee-label';
+      
+      const radio = document.createElement('input');
+      radio.type = 'radio';
+      radio.name = `cat_${catIndex}`;
+      radio.value = nomIndex;
+      radio.dataset.wasChecked = "false";
+      
+      // Deselect functionality
+      radio.addEventListener('click', function(e) {
+        if (this.dataset.wasChecked === "true") {
+          this.checked = false;
+          this.dataset.wasChecked = "false";
+        } else {
+          document.querySelectorAll(`input[name="${this.name}"]`).forEach(r => r.dataset.wasChecked = "false");
+          this.dataset.wasChecked = "true";
+        }
+        updateProgress();
+      });
+
+      const customRadio = document.createElement('span');
+      customRadio.className = 'custom-radio';
+      
+      const textSpan = document.createElement('span');
+      textSpan.className = 'nominee-text';
+      textSpan.textContent = nominee;
+      
+      label.appendChild(radio);
+      label.appendChild(customRadio);
+      label.appendChild(textSpan);
+      fieldset.appendChild(label);
+    });
+    
+    if (cat.name === 'Best Picture') {
+      fieldset.style.gridColumn = '1 / -1';
+      fieldset.style.display = 'grid';
+      fieldset.style.gridTemplateColumns = 'repeat(auto-fit, minmax(280px, 1fr))';
+    }
+    formGrid.appendChild(fieldset);
+  });
+
+  // 2. Track Progress
+  function updateProgress() {
+    const total = categories.length;
+    const filled = new Set();
+    document.querySelectorAll('input[type="radio"]:checked').forEach(el => filled.add(el.name));
+    
+    const count = filled.size;
+    document.getElementById('progress-text').innerText = `${count} / ${total} Categories Selected`;
+    document.getElementById('progress-bar').style.width = `${(count / total) * 100}%`;
+  }
+
+  function clearForm() {
+    document.getElementById('ballot-form').reset();
+    document.querySelectorAll('input[type="radio"]').forEach(r => r.dataset.wasChecked = "false");
+    updateProgress();
+  }
+
+  // 3. Dynamic Image Tooltips
+  const tooltipCache = {};
+  let hoverTimeout;
+  let mouseX = 0; let mouseY = 0;
+
+  document.addEventListener('mousemove', (e) => {
+    mouseX = e.clientX; mouseY = e.clientY;
+    const tooltip = document.getElementById('wiki-tooltip');
+    if (tooltip && tooltip.classList.contains('visible')) {
+      let x = mouseX + 15; let y = mouseY + 15;
+      if (x + 200 > window.innerWidth) x = mouseX - 195; 
+      if (y + 280 > window.innerHeight) y = window.innerHeight - 280;
+      tooltip.style.left = `${x}px`; tooltip.style.top = `${y}px`;
+    }
+  });
+
+  function initTooltips() {
+    const tooltip = document.createElement('div');
+    tooltip.id = 'wiki-tooltip'; tooltip.className = 'wiki-tooltip';
+    tooltip.innerHTML = `
+      <img src="" alt="" id="tt-img" class="tooltip-img">
+      <div class="tooltip-title" id="tt-title"></div>
+    `;
+    document.body.appendChild(tooltip);
+
+    const labels = document.querySelectorAll('.nominee-label');
+    
+    labels.forEach(label => {
+      label.addEventListener('mouseenter', () => {
+        clearTimeout(hoverTimeout);
+        hoverTimeout = setTimeout(async () => {
+          const textElement = label.querySelector('.nominee-text');
+          const fullText = textElement.textContent;
+          const category = label.closest('fieldset').querySelector('legend').textContent;
+          
+          tooltip.classList.add('visible');
+          
+          let x = mouseX + 15; let y = mouseY + 15;
+          if (x + 200 > window.innerWidth) x = mouseX - 195;
+          if (y + 280 > window.innerHeight) y = window.innerHeight - 280;
+          tooltip.style.left = `${x}px`; tooltip.style.top = `${y}px`;
+
+          document.getElementById('tt-title').textContent = "Loading image...";
+          document.getElementById('tt-img').style.display = 'none';
+          
+          // Smart Query parser
+          let query = fullText;
+          let displayName = fullText;
+
+          if (fullText.includes('—')) {
+            const parts = fullText.split('—');
+            if (['Actor', 'Actress', 'Directing', 'Music', 'Costume', 'Makeup', 'Casting'].some(c => category.includes(c))) {
+              query = parts[0].trim();
+              displayName = parts[0].trim();
+            } else {
+              query = parts[1].trim() + " film";
+              displayName = parts[1].trim();
+            }
+          } else {
+            query = fullText + " film";
+            displayName = fullText;
+          }
+
+          if (!tooltipCache[query]) {
+             try {
+               const url = `https://en.wikipedia.org/w/api.php?action=query&format=json&prop=pageimages&generator=search&piprop=thumbnail&pithumbsize=400&origin=*&gsrsearch=${encodeURIComponent(query)}&gsrlimit=1`;
+               const response = await fetch(url);
+               const data = await response.json();
+               
+               if (data.query && data.query.pages) {
+                 const pageId = Object.keys(data.query.pages)[0];
+                 const page = data.query.pages[pageId];
+                 tooltipCache[query] = { title: displayName, image: page.thumbnail ? page.thumbnail.source : null };
+               } else {
+                 tooltipCache[query] = { title: displayName, image: null };
+               }
+             } catch(err) {
+               tooltipCache[query] = { title: displayName, image: null };
+             }
+          }
+          
+          if (!tooltip.classList.contains('visible')) return;
+          
+          const result = tooltipCache[query];
+          const imgEl = document.getElementById('tt-img');
+          
+          if (result.image) {
+            imgEl.src = result.image;
+            imgEl.style.display = 'block';
+            document.getElementById('tt-title').textContent = result.title;
+          } else {
+            imgEl.style.display = 'none';
+            document.getElementById('tt-title').textContent = result.title + " (No image found)";
+          }
+          
+        }, 350); 
+      });
+
+      label.addEventListener('mouseleave', () => {
+        clearTimeout(hoverTimeout);
+        document.getElementById('wiki-tooltip').classList.remove('visible');
+      });
+    });
+  }
+
+  // 4. Generate Final Document (PDF or PNG)
+  async function generateFile(format) {
+    const btns = document.querySelectorAll('button');
+    const loader = document.getElementById(`loader-${format}`);
+    const btnText = document.getElementById(`text-${format}`);
+    const originalText = btnText.innerText;
+    
+    btns.forEach(b => b.disabled = true);
+    loader.style.display = 'inline-block';
+    btnText.innerText = 'Processing...';
+
+    try {
+      let existingPdfBytes;
+      const originalUrl = 'https://a2.ltrbxd.com/oscars/2026/letterboxd-2026-oscars-ballot.pdf';
+      
+      try {
+        const response = await fetch(originalUrl);
+        if (!response.ok) throw new Error();
+        existingPdfBytes = await response.arrayBuffer();
+      } catch (e) {
+        const proxyUrl = 'https://api.allorigins.win/raw?url=' + encodeURIComponent(originalUrl);
+        const proxyResponse = await fetch(proxyUrl);
+        existingPdfBytes = await proxyResponse.arrayBuffer();
+      }
+
+      // Draw standard PDF
+      const { PDFDocument, rgb } = window.PDFLib;
+      const pdfDoc = await PDFDocument.load(existingPdfBytes);
+      const firstPage = pdfDoc.getPages()[0];
+
+      categories.forEach((cat, catIndex) => {
+        const selected = document.querySelector(`input[name="cat_${catIndex}"]:checked`);
+        if (selected) {
+          const nomIndex = parseInt(selected.value, 10);
+          const[x, y] = cat.coords[nomIndex];
+          firstPage.drawCircle({ x, y, size: 3.5, color: rgb(0, 0.878, 0.329) });
+        }
+      });
+
+      const pdfBytes = await pdfDoc.save();
+
+      // Trigger respective download
+      if (format === 'pdf') {
+        const blob = new Blob([pdfBytes], { type: 'application/pdf' });
+        const link = document.createElement('a');
+        link.href = URL.createObjectURL(blob);
+        link.download = '2026_Oscars_Ballot_Completed.pdf';
+        document.body.appendChild(link);
+        link.click();
+        document.body.removeChild(link);
+        
+      } else if (format === 'png') {
+        // Load into PDF.js Canvas renderer
+        const loadingTask = pdfjsLib.getDocument({ data: pdfBytes });
+        const pdf = await loadingTask.promise;
+        const page = await pdf.getPage(1);
+        
+        // 3x scale guarantees crisp, high-quality HD PNG output
+        const scale = 3;
+        const viewport = page.getViewport({ scale: scale });
+        
+        const canvas = document.createElement('canvas');
+        const context = canvas.getContext('2d');
+        canvas.height = viewport.height;
+        canvas.width = viewport.width;
+        
+        const renderContext = { canvasContext: context, viewport: viewport };
+        await page.render(renderContext).promise;
+        
+        const pngUrl = canvas.toDataURL('image/png');
+        const link = document.createElement('a');
+        link.href = pngUrl;
+        link.download = '2026_Oscars_Ballot_Completed.png';
+        document.body.appendChild(link);
+        link.click();
+        document.body.removeChild(link);
+      }
+      
+    } catch (error) {
+      console.error(error);
+      alert('An error occurred. Please check your internet connection and try again.');
+    } finally {
+      btns.forEach(b => b.disabled = false);
+      loader.style.display = 'none';
+      btnText.innerText = originalText;
+    }
+  }
+
+  updateProgress();
+  initTooltips();
+</script>
+
+</body>
+</html>
