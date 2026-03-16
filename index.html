@@ -134,7 +134,7 @@
     .wiki-tooltip {
       position: fixed; z-index: 9999;
       width: max-content; 
-      max-width: 480px;
+      max-width: 500px;
       background: rgba(20, 24, 28, 0.98);
       backdrop-filter: blur(16px);
       border: 1px solid var(--panel-border);
@@ -145,14 +145,14 @@
       transition: opacity 0.2s cubic-bezier(0.175, 0.885, 0.32, 1.2), transform 0.2s cubic-bezier(0.175, 0.885, 0.32, 1.2);
     }
 
-    .wiki-tooltip.visible { opacity: 1; transform: translateY(0); }
+    .wiki-tooltip.visible { opacity: 1; transform: translateY(0); pointer-events: auto; }
 
     .tooltip-layout {
       display: flex; gap: 16px; align-items: flex-start;
     }
 
     .tooltip-img {
-      width: 100px; height: auto;
+      width: 120px; height: auto;
       object-fit: cover;
       border-radius: 6px;
       box-shadow: 0 4px 10px rgba(0,0,0,0.4);
@@ -170,11 +170,15 @@
 
     .tooltip-desc {
       color: var(--text-muted); font-size: 0.85rem; line-height: 1.45;
-      display: -webkit-box;
-      -webkit-line-clamp: 10;
-      -webkit-box-orient: vertical;
-      overflow: hidden; text-overflow: ellipsis;
+      max-height: 350px; /* Prevents it from going off-screen */
+      overflow-y: auto; /* Adds a scrollbar if the JSON text is very long */
+      padding-right: 8px;
     }
+
+    /* Custom subtle scrollbar for the tooltip */
+    .tooltip-desc::-webkit-scrollbar { width: 6px; }
+    .tooltip-desc::-webkit-scrollbar-track { background: transparent; }
+    .tooltip-desc::-webkit-scrollbar-thumb { background: #445566; border-radius: 3px; }
 
     .tooltip-desc strong { color: #fff; }
     .tooltip-desc em { font-style: italic; color: #aabbaa; }
@@ -241,7 +245,7 @@
 
 <div class="header">
   <h1>2026 Oscars Ballot</h1>
-  <p class="subtitle">Select your winners. Leave a category blank if undecided. Hover over nominations for context.</p>
+  <p class="subtitle">Select your winners. Leave a category blank if undecided. Hover over options for context.</p>
 </div>
 
 <div class="container">
@@ -291,7 +295,7 @@
   }
   loadContextJson();
 
-  // Helper to normalize strings for fuzzy matching
+  // Helper to normalize strings for exact matching
   function normalizeText(str) {
     return str.normalize("NFD").replace(/[\u0300-\u036f]/g, "").toLowerCase().replace(/[^a-z0-9]/g, '');
   }
@@ -334,7 +338,7 @@
 
   const formGrid = document.getElementById('form-grid');
   
-  // Build DOM
+  // Build DOM utilizing isolated Category Cards instead of Fieldsets
   categories.forEach((cat, catIndex) => {
     const card = document.createElement('div');
     card.className = 'category-card';
@@ -420,12 +424,15 @@
     const tooltip = document.getElementById('wiki-tooltip');
     if (tooltip && tooltip.classList.contains('visible')) {
       let x = mouseX + 15; let y = mouseY + 15;
-      const ttWidth = tooltip.offsetWidth || 480;
+      const ttWidth = tooltip.offsetWidth || 500;
       const ttHeight = tooltip.offsetHeight || 300;
+      
+      // Keep tooltip strictly inside the viewport
       if (x + ttWidth > window.innerWidth) x = mouseX - ttWidth - 10; 
       if (y + ttHeight > window.innerHeight) y = window.innerHeight - ttHeight - 10;
       if (x < 10) x = 10;
       if (y < 10) y = 10;
+      
       tooltip.style.left = `${x}px`; tooltip.style.top = `${y}px`;
     }
   });
@@ -433,6 +440,11 @@
   function initTooltips() {
     const tooltip = document.createElement('div');
     tooltip.id = 'wiki-tooltip'; tooltip.className = 'wiki-tooltip';
+    
+    // Allow users to mouse into the tooltip to scroll if the text is long
+    tooltip.addEventListener('mouseenter', () => { clearTimeout(hoverTimeout); });
+    tooltip.addEventListener('mouseleave', () => { tooltip.classList.remove('visible'); });
+
     tooltip.innerHTML = `
       <div class="tooltip-layout">
         <img src="" alt="" id="tt-img" class="tooltip-img">
@@ -479,36 +491,41 @@
             }
           }
 
+          // Force an impossible search string so Wikipedia gracefully fails and returns "No image" instead of the wrong poster
           const overrides = {
-            "Children No More: “Were and Are Gone”": "Children No More documentary",
+            "Children No More: “Were and Are Gone”": "zxcvbnm_impossible_image_query",
             "Dear Me—Diane Warren: Relentless": "Relentless film",
             "Sweet Dreams Of Joy—Viva Verdi!": "Viva Verdi! film"
           };
           if (overrides[fullText]) searchTarget = overrides[fullText];
 
-          // 1. Find Context in Local JSON
+          // 1. Find Context in Local JSON - Strictly matches the specific Category first
           let localDescHtml = "";
           if (contextLoadError) {
-             localDescHtml = `<span class="tooltip-error">Context unavailable. Ensure info.json is in the same folder.<br>(Note: Chrome blocks local file reading for security. Open via local web-server or Firefox).</span>`;
+             localDescHtml = `<span class="tooltip-error">Context unavailable. Ensure info.json is in the same folder.<br><br>(Note: Chrome blocks local file reading for security if running via file://. Open via Firefox or a local web-server).</span>`;
           } else if (oscarContextData) {
              const targetNorm = normalizeText(fullText);
+             const categoryNorm = normalizeText(category);
              let foundDetails = null;
              
-             for (const cat of oscarContextData) {
-               for (const nom of cat.nominees) {
+             // Pinpoint the exact category
+             const matchedCat = oscarContextData.find(c => normalizeText(c.name).includes(categoryNorm) || categoryNorm.includes(normalizeText(c.name)));
+             
+             if (matchedCat) {
+               // Pinpoint the specific nominee within that category
+               for (const nom of matchedCat.nominees) {
                  const jsonNorm = normalizeText(nom.name);
                  if (jsonNorm.includes(targetNorm) || targetNorm.includes(jsonNorm)) {
                    foundDetails = nom.details;
                    break;
                  }
                }
-               if (foundDetails) break;
              }
              
              if (foundDetails) {
                localDescHtml = foundDetails.map(p => parseMarkdown(p)).join('<br><br>');
              } else {
-               localDescHtml = "<em>No extended context found for this nominee.</em>";
+               localDescHtml = "<em>No extended context found for this nominee in this category.</em>";
              }
           }
 
@@ -541,11 +558,12 @@
             imgEl.src = result.image; imgEl.style.display = 'block';
           } else {
             imgEl.style.display = 'none';
+            document.getElementById('tt-title').textContent = result.title + " (No image)";
           }
 
-          // Re-adjust position based on populated content
+          // Initial placement re-calculation after content loads
           let x = mouseX + 15; let y = mouseY + 15;
-          const ttWidth = tooltip.offsetWidth || 480;
+          const ttWidth = tooltip.offsetWidth || 500;
           const ttHeight = tooltip.offsetHeight || 300;
           if (x + ttWidth > window.innerWidth) x = mouseX - ttWidth - 10; 
           if (y + ttHeight > window.innerHeight) y = window.innerHeight - ttHeight - 10;
@@ -556,7 +574,8 @@
         }, 350); 
       });
       label.addEventListener('mouseleave', () => {
-        clearTimeout(hoverTimeout); document.getElementById('wiki-tooltip').classList.remove('visible');
+        // slight delay to allow the user to move their mouse into the tooltip if they want to scroll the text
+        hoverTimeout = setTimeout(() => { tooltip.classList.remove('visible'); }, 100);
       });
     });
   }
@@ -644,7 +663,8 @@
         const pdf = await loadingTask.promise;
         const page = await pdf.getPage(1);
         
-        const scale = 3;
+        // Increased scaling from 3 to 5 for ultra-high-definition, print-quality PNG output
+        const scale = 5; 
         const viewport = page.getViewport({ scale: scale });
         
         const canvas = document.createElement('canvas');
