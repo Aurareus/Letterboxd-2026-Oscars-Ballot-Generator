@@ -134,7 +134,7 @@
     .wiki-tooltip {
       position: fixed; z-index: 9999;
       width: max-content; 
-      max-width: 500px;
+      max-width: 550px;
       background: rgba(20, 24, 28, 0.98);
       backdrop-filter: blur(16px);
       border: 1px solid var(--panel-border);
@@ -168,17 +168,17 @@
       margin-bottom: 8px; font-size: 1.05rem; line-height: 1.2;
     }
 
+    /* Scrollable Text Description */
     .tooltip-desc {
       color: var(--text-muted); font-size: 0.85rem; line-height: 1.45;
-      max-height: 350px; /* Prevents it from going off-screen */
-      overflow-y: auto; /* Adds a scrollbar if the JSON text is very long */
+      max-height: 300px; 
+      overflow-y: auto;
       padding-right: 8px;
     }
 
-    /* Custom subtle scrollbar for the tooltip */
     .tooltip-desc::-webkit-scrollbar { width: 6px; }
-    .tooltip-desc::-webkit-scrollbar-track { background: transparent; }
-    .tooltip-desc::-webkit-scrollbar-thumb { background: #445566; border-radius: 3px; }
+    .tooltip-desc::-webkit-scrollbar-track { background: rgba(255,255,255,0.05); border-radius: 3px; }
+    .tooltip-desc::-webkit-scrollbar-thumb { background: rgba(255,255,255,0.2); border-radius: 3px; }
 
     .tooltip-desc strong { color: #fff; }
     .tooltip-desc em { font-style: italic; color: #aabbaa; }
@@ -231,8 +231,8 @@
     @media (max-width: 768px) {
       .footer-content { flex-direction: column; text-align: center; }
       .progress-tracker, .button-group { width: 100%; justify-content: center; }
-      .wiki-tooltip { max-width: 300px; }
-      .tooltip-img { width: 70px; }
+      .wiki-tooltip { max-width: 320px; }
+      .tooltip-img { width: 80px; }
     }
   </style>
 
@@ -245,7 +245,7 @@
 
 <div class="header">
   <h1>2026 Oscars Ballot</h1>
-  <p class="subtitle">Select your winners. Leave a category blank if undecided. Hover over options for context.</p>
+  <p class="subtitle">Select your winners. Leave a category blank if undecided. Hover over options for deep context.</p>
 </div>
 
 <div class="container">
@@ -295,10 +295,38 @@
   }
   loadContextJson();
 
-  // Helper to normalize strings for exact matching
+  // Helper to normalize strings for flawless, fuzzy cross-matching
   function normalizeText(str) {
     return str.normalize("NFD").replace(/[\u0300-\u036f]/g, "").toLowerCase().replace(/[^a-z0-9]/g, '');
   }
+
+  // Maps UI category names exactly to info.json category headers
+  const categoryMap = {
+    "Actor in a Leading Role": "BEST ACTOR",
+    "Actor in a Supporting Role": "BEST SUPPORTING ACTOR",
+    "Actress in a Leading Role": "BEST ACTRESS",
+    "Actress in a Supporting Role": "BEST SUPPORTING ACTRESS",
+    "Animated Feature Film": "BEST ANIMATED FEATURE",
+    "Animated Short Film": "BEST ANIMATED SHORT",
+    "Casting": "BEST CASTING",
+    "Cinematography": "BEST CINEMATOGRAPHY",
+    "Costume Design": "BEST COSTUME DESIGN",
+    "Directing": "BEST DIRECTOR",
+    "Documentary Feature Film": "BEST DOCUMENTARY FEATURE",
+    "Documentary Short Film": "BEST DOCUMENTARY SHORT",
+    "Film Editing": "BEST FILM EDITING",
+    "International Feature Film": "BEST INTERNATIONAL FEATURE FILM",
+    "Live Action Short Film": "BEST LIVE ACTION SHORT",
+    "Makeup and Hairstyling": "BEST MAKEUP AND HAIRSTYLING",
+    "Music (Original Score)": "BEST ORIGINAL SCORE",
+    "Music (Original Song)": "BEST ORIGINAL SONG",
+    "Production Design": "BEST PRODUCTION DESIGN",
+    "Sound": "BEST SOUND",
+    "Visual Effects": "BEST VISUAL EFFECTS",
+    "Writing (Adapted Screenplay)": "BEST ADAPTED SCREENPLAY",
+    "Writing (Original Screenplay)": "BEST ORIGINAL SCREENPLAY",
+    "Best Picture": "BEST PICTURE"
+  };
 
   // Helper to convert bold/italics from info.json to HTML
   function parseMarkdown(text) {
@@ -338,7 +366,6 @@
 
   const formGrid = document.getElementById('form-grid');
   
-  // Build DOM utilizing isolated Category Cards instead of Fieldsets
   categories.forEach((cat, catIndex) => {
     const card = document.createElement('div');
     card.className = 'category-card';
@@ -414,7 +441,7 @@
     updateProgress();
   }
 
-  // Tooltips Engine
+  // Smart Tooltip Engine
   const tooltipCache = {};
   let hoverTimeout;
   let mouseX = 0; let mouseY = 0;
@@ -422,12 +449,13 @@
   document.addEventListener('mousemove', (e) => {
     mouseX = e.clientX; mouseY = e.clientY;
     const tooltip = document.getElementById('wiki-tooltip');
+    
+    // Dynamic tooltip positioning keeps it on-screen
     if (tooltip && tooltip.classList.contains('visible')) {
       let x = mouseX + 15; let y = mouseY + 15;
-      const ttWidth = tooltip.offsetWidth || 500;
+      const ttWidth = tooltip.offsetWidth || 550;
       const ttHeight = tooltip.offsetHeight || 300;
       
-      // Keep tooltip strictly inside the viewport
       if (x + ttWidth > window.innerWidth) x = mouseX - ttWidth - 10; 
       if (y + ttHeight > window.innerHeight) y = window.innerHeight - ttHeight - 10;
       if (x < 10) x = 10;
@@ -441,9 +469,8 @@
     const tooltip = document.createElement('div');
     tooltip.id = 'wiki-tooltip'; tooltip.className = 'wiki-tooltip';
     
-    // Allow users to mouse into the tooltip to scroll if the text is long
-    tooltip.addEventListener('mouseenter', () => { clearTimeout(hoverTimeout); });
-    tooltip.addEventListener('mouseleave', () => { tooltip.classList.remove('visible'); });
+    // Listen for mouse wheel events on the tooltip itself to allow scrolling the text
+    tooltip.addEventListener('wheel', (e) => { e.stopPropagation(); }, {passive: true});
 
     tooltip.innerHTML = `
       <div class="tooltip-layout">
@@ -463,7 +490,7 @@
           const textElement = label.querySelector('.nominee-text');
           const fullText = textElement.textContent;
           const categoryCard = label.closest('.category-card');
-          const category = categoryCard.querySelector('.category-title').textContent;
+          const htmlCatName = categoryCard.querySelector('.category-title').textContent;
           
           tooltip.classList.add('visible');
           document.getElementById('tt-title').textContent = "Loading context...";
@@ -472,7 +499,7 @@
           
           let searchTarget = fullText;
           let displayName = fullText;
-          const isPersonCategory =['Actor', 'Actress', 'Directing', 'Score'].some(c => category.includes(c));
+          const isPersonCategory =['Actor', 'Actress', 'Directing', 'Score'].some(c => htmlCatName.includes(c));
 
           if (isPersonCategory && fullText.includes('—')) {
             const parts = fullText.split('—');
@@ -491,29 +518,24 @@
             }
           }
 
-          // Force an impossible search string so Wikipedia gracefully fails and returns "No image" instead of the wrong poster
           const overrides = {
-            "Children No More: “Were and Are Gone”": "zxcvbnm_impossible_image_query",
             "Dear Me—Diane Warren: Relentless": "Relentless film",
             "Sweet Dreams Of Joy—Viva Verdi!": "Viva Verdi! film"
           };
           if (overrides[fullText]) searchTarget = overrides[fullText];
 
-          // 1. Find Context in Local JSON - Strictly matches the specific Category first
+          // 1. Fetch exact context from info.json based on specific category
           let localDescHtml = "";
           if (contextLoadError) {
-             localDescHtml = `<span class="tooltip-error">Context unavailable. Ensure info.json is in the same folder.<br><br>(Note: Chrome blocks local file reading for security if running via file://. Open via Firefox or a local web-server).</span>`;
+             localDescHtml = `<span class="tooltip-error">Extended context unavailable. Ensure info.json is saved in the exact same folder as this file.</span>`;
           } else if (oscarContextData) {
-             const targetNorm = normalizeText(fullText);
-             const categoryNorm = normalizeText(category);
+             const jsonTargetCategory = categoryMap[htmlCatName];
+             const catData = oscarContextData.find(c => c.name.includes(jsonTargetCategory));
+             
              let foundDetails = null;
-             
-             // Pinpoint the exact category
-             const matchedCat = oscarContextData.find(c => normalizeText(c.name).includes(categoryNorm) || categoryNorm.includes(normalizeText(c.name)));
-             
-             if (matchedCat) {
-               // Pinpoint the specific nominee within that category
-               for (const nom of matchedCat.nominees) {
+             if (catData) {
+               const targetNorm = normalizeText(fullText);
+               for (const nom of catData.nominees) {
                  const jsonNorm = normalizeText(nom.name);
                  if (jsonNorm.includes(targetNorm) || targetNorm.includes(jsonNorm)) {
                    foundDetails = nom.details;
@@ -525,12 +547,16 @@
              if (foundDetails) {
                localDescHtml = foundDetails.map(p => parseMarkdown(p)).join('<br><br>');
              } else {
-               localDescHtml = "<em>No extended context found for this nominee in this category.</em>";
+               localDescHtml = "<em>No specific context provided in info.json for this nominee.</em>";
              }
           }
 
-          // 2. Fetch Image from Wikipedia
-          if (!tooltipCache[searchTarget]) {
+          // 2. Fetch Image Poster/Headshot from Wikipedia
+          const noWikiPages = ["Children No More: “Were and Are Gone”"]; // Blacklist bad API returns
+          
+          if (noWikiPages.includes(fullText)) {
+             tooltipCache[searchTarget] = { title: displayName, image: null };
+          } else if (!tooltipCache[searchTarget]) {
              try {
                const url = `https://en.wikipedia.org/w/api.php?action=query&format=json&prop=pageimages&generator=search&piprop=thumbnail&pithumbsize=400&pilicense=any&origin=*&gsrsearch=${encodeURIComponent(searchTarget)}&gsrlimit=1`;
                const response = await fetch(url);
@@ -554,33 +580,45 @@
           document.getElementById('tt-title').textContent = result.title;
           document.getElementById('tt-desc').innerHTML = localDescHtml;
 
-          if (result.image) {
+          if (result && result.image) {
             imgEl.src = result.image; imgEl.style.display = 'block';
           } else {
             imgEl.style.display = 'none';
-            document.getElementById('tt-title').textContent = result.title + " (No image)";
           }
 
-          // Initial placement re-calculation after content loads
+          // Initial position sync
           let x = mouseX + 15; let y = mouseY + 15;
-          const ttWidth = tooltip.offsetWidth || 500;
+          const ttWidth = tooltip.offsetWidth || 550;
           const ttHeight = tooltip.offsetHeight || 300;
           if (x + ttWidth > window.innerWidth) x = mouseX - ttWidth - 10; 
           if (y + ttHeight > window.innerHeight) y = window.innerHeight - ttHeight - 10;
-          if (x < 10) x = 10;
-          if (y < 10) y = 10;
+          if (x < 10) x = 10; if (y < 10) y = 10;
           tooltip.style.left = `${x}px`; tooltip.style.top = `${y}px`;
 
         }, 350); 
       });
-      label.addEventListener('mouseleave', () => {
-        // slight delay to allow the user to move their mouse into the tooltip if they want to scroll the text
-        hoverTimeout = setTimeout(() => { tooltip.classList.remove('visible'); }, 100);
+      
+      // We don't want the tooltip to vanish instantly if they move the mouse into the tooltip to scroll
+      label.addEventListener('mouseleave', (e) => {
+        clearTimeout(hoverTimeout);
+        
+        // Let the user mouse over the tooltip itself to read/scroll long text
+        const toElement = e.relatedTarget;
+        const tooltip = document.getElementById('wiki-tooltip');
+        
+        if (tooltip && (toElement === tooltip || tooltip.contains(toElement))) {
+           tooltip.addEventListener('mouseleave', function hideTooltip() {
+               tooltip.classList.remove('visible');
+               tooltip.removeEventListener('mouseleave', hideTooltip);
+           });
+        } else {
+           tooltip.classList.remove('visible');
+        }
       });
     });
   }
 
-  // File Generators
+  // Highly Resilient Fetcher - Prioritizes Local File
   async function fetchBallotTemplate(btnText) {
     const localFile = 'letterboxd-2026-oscars-ballot.pdf';
     const originalUrl = 'https://a2.ltrbxd.com/oscars/2026/letterboxd-2026-oscars-ballot.pdf';
@@ -608,6 +646,7 @@
         if (!response.ok) continue; 
         
         const arrayBuffer = await response.arrayBuffer();
+        
         const view = new Uint8Array(arrayBuffer);
         if (view[0] === 0x25 && view[1] === 0x50 && view[2] === 0x44 && view[3] === 0x46) {
           return arrayBuffer;
@@ -619,6 +658,7 @@
     throw new Error("Could not load local PDF and all remote proxy routes failed.");
   }
 
+  // Document Generator
   async function generateFile(format) {
     const btns = document.querySelectorAll('button');
     const loader = document.getElementById(`loader-${format}`);
@@ -658,18 +698,19 @@
         document.body.removeChild(link);
         
       } else if (format === 'png') {
-        btnText.innerText = 'Rendering PNG...';
+        btnText.innerText = 'Rendering HD PNG...';
         const loadingTask = pdfjsLib.getDocument({ data: pdfBytes });
         const pdf = await loadingTask.promise;
         const page = await pdf.getPage(1);
         
-        // Increased scaling from 3 to 5 for ultra-high-definition, print-quality PNG output
-        const scale = 5; 
+        // Upscale factor 5x creates an incredibly crisp, ultra-high-resolution canvas (approx. 3060x3960 pixels)
+        const scale = 5;
         const viewport = page.getViewport({ scale: scale });
         
         const canvas = document.createElement('canvas');
         const context = canvas.getContext('2d');
-        canvas.height = viewport.height; canvas.width = viewport.width;
+        canvas.height = viewport.height; 
+        canvas.width = viewport.width;
         
         const renderContext = { canvasContext: context, viewport: viewport };
         await page.render(renderContext).promise;
